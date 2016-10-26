@@ -1,3 +1,5 @@
+# multiple thread
+
 如果对什么是线程、什么是进程仍存有疑惑，请先Google之，因为这两个概念不在本文的范围之内。
 
 用多线程只有一个目的，那就是更好的利用cpu的资源，因为所有的多线程代码都可以用单线程来实现。说这个话其实只有一半对，因为反应“多角色”的程序代码，最起码每个角色要给他一个线程吧，否则连实际场景都无法模拟，当然也没法说能用单线程来实现：比如最常见的“生产者，消费者模型”。
@@ -11,10 +13,13 @@
 图片描述
 线程安全：经常用来描绘一段代码。指在并发的情况之下，该代码经过多线程使用，线程的调度顺序不影响任何结果。这个时候使用多线程，我们只需要关注系统的内存，cpu是不是够用即可。反过来，线程不安全就意味着线程的调度顺序会影响最终结果，如不加事务的转账代码：
 
+```java
 void transferMoney(User from, User to, float amount){
   to.setMoney(to.getBalance() + amount);
   from.setMoney(from.getBalance() - amount);
 }
+```
+
 同步：Java中的同步指的是通过人为的控制和调度，保证共享资源的多线程访问成为线程安全，来保证结果的准确。如上面的代码简单加入@synchronized关键字。在保证结果准确的同时，提高性能，才是优秀的程序。线程安全的优先级高于性能。 
 好了，让我们开始吧。我准备分成几部分来总结涉及到多线程的内容：
 
@@ -48,6 +53,7 @@ wait/notify必须存在于synchronized块中。并且，这三个关键字针对
 synchronized单独使用： 
 代码块：如下，在多线程环境下，synchronized块中的方法获取了lock实例的monitor，如果实例相同，那么只有一个线程能执行该块内容
 
+```java
 public class Thread1 implements Runnable {
    Object lock;
    public void run() {  
@@ -56,15 +62,22 @@ public class Thread1 implements Runnable {
        }
    }
 }
+```
+
+
 直接用于方法： 相当于上面代码中用lock来锁定的效果，实际获取的是Thread1类的monitor。更进一步，如果修饰的是static方法，则锁定该类所有实例。
 
+```java
 public class Thread1 implements Runnable {
    public synchronized void run() {  
         ..do something
    }
 }
+```
+
 synchronized, wait, notify结合:典型场景生产者消费者问题
 
+```java
 /**
    * 生产者生产出来的产品交给店员
    */
@@ -112,7 +125,10 @@ synchronized, wait, notify结合:典型场景生产者消费者问题
       this.product--;
       notifyAll();   //通知等待去的生产者可以生产产品了
   }
-volatile 
+```  
+  
+volatile
+
 多线程的内存模型：main memory（主存）、working memory（线程栈），在处理数据时，线程会把值从主存load到本地栈，完成操作后再save回去(volatile关键词的作用：每次针对该变量的操作都激发一次load and save)。 
 图片描述
 针对多线程使用的变量如果不是volatile或者final修饰的，很有可能产生不可预知的结果（另一个线程修改了这个值，但是之后在某线程看到的是修改之前的值）。其实道理上讲同一实例的同一属性本身只有一个副本。但是多线程是会缓存值的，本质上，volatile就是不去缓存，直接取值。在线程安全的情况下加volatile会牺牲性能。
@@ -121,10 +137,14 @@ volatile
 基本线程类指的是Thread类，Runnable接口，Callable接口 
 Thread 类实现了Runnable接口，启动一个线程的方法：
 
+```java
 　　MyThread my = new MyThread();
 　　my.start();
+```
+
 Thread类相关方法：
 
+```java
 //当前线程可转让cpu控制权，让别的就绪状态线程运行（切换）
 public static Thread.yield() 
 //暂停一段时间
@@ -133,6 +153,8 @@ public static Thread.sleep()
 public join()
 //后两个函数皆可以被打断
 public interrupte()
+```
+
 关于中断：它并不像stop方法那样会中断一个正在运行的线程。线程会不时地检测中断标识位，以判断线程是否应该被中断（中断标识值是否为true）。终端只会影响到wait状态、sleep状态和join状态。被打断的线程会抛出InterruptedException。 
 Thread.interrupted()检查当前线程是否发生中断，返回boolean 
 synchronized在获锁的过程中是不能被中断的。
@@ -151,39 +173,49 @@ Runnable
 Callable 
 future模式：并发模式的一种，可以有两种形式，即无阻塞和阻塞，分别是isDone和get。其中Future对象用来存放该线程的返回值以及状态
 
+```java
 ExecutorService e = Executors.newFixedThreadPool(3);
  //submit方法有多重参数版本，及支持callable也能够支持runnable接口类型.
 Future future = e.submit(new myCallable());
 future.isDone() //return true,false 无阻塞
 future.get() // return 返回值，阻塞直到该线程运行结束
+```
+
 九阴真经：高级多线程控制类 
 以上都属于内功心法，接下来是实际项目中常用到的工具了，Java1.5提供了一个非常高效实用的多线程包:java.util.concurrent, 提供了大量高级工具,可以帮助开发者编写高效、易维护、结构清晰的Java多线程程序。
 
-1.ThreadLocal类 
+1.ThreadLocal类
+
 用处：保存线程的独立变量。对一个线程类（继承自Thread) 
 当使用ThreadLocal维护变量时，ThreadLocal为每个使用该变量的线程提供独立的变量副本，所以每一个线程都可以独立地改变自己的副本，而不会影响其它线程所对应的副本。常用于用户登录控制，如记录session信息。
 
 实现：每个Thread都持有一个TreadLocalMap类型的变量（该类是一个轻量级的Map，功能与map一样，区别是桶里放的是entry而不是entry的链表。功能还是一个map。）以本身为key，以目标为value。 
 主要方法是get()和set(T a)，set之后在map里维护一个threadLocal -> a，get时将a返回。ThreadLocal是一个特殊的容器。
 
-2.原子类（AtomicInteger、AtomicBoolean……） 
+2.原子类（AtomicInteger、AtomicBoolean……）
+
 如果使用atomic wrapper class如atomicInteger，或者使用自己保证原子的操作，则等同于synchronized
 
 //返回值为boolean
 AtomicInteger.compareAndSet(int expect,int update)
 该方法可用于实现乐观锁，考虑文中最初提到的如下场景：a给b付款10元，a扣了10元，b要加10元。此时c给b2元，但是b的加十元代码约为：
 
+```java
 if(b.value.compareAndSet(old, value)){
    return ;
 }else{
    //try again
    // if that fails, rollback and log
 }
-AtomicReference 
+```
+
+AtomicReference
+
 对于AtomicReference 来讲，也许对象会出现，属性丢失的情况，即oldObject == current，但是oldObject.getPropertyA != current.getPropertyA。 
 这时候，AtomicStampedReference就派上用场了。这也是一个很常用的思路，即加上版本号
 
-3.Lock类　 
+3.Lock类
+
 lock: 在java.util.concurrent包内。共有三个实现：
 
 ReentrantLock 
@@ -207,7 +239,10 @@ ReentrantLock　　　　
 
 1.先new一个实例
 
+```java
 static ReentrantLock r=new ReentrantLock();
+```
+
 2.加锁　　　
 
 r.lock()或r.lockInterruptibly();
@@ -222,9 +257,12 @@ ReentrantReadWriteLock
 
 可重入读写锁（读写锁的一个实现）
 
+```java
 　　ReentrantReadWriteLock lock = new ReentrantReadWriteLock()
 　　ReadLock r = lock.readLock();
 　　WriteLock w = lock.writeLock();
+```
+
 两者都有lock,unlock方法。写写，写读互斥；读读不互斥。可以实现并发读的高效线程安全代码
 
 4.容器类 
@@ -255,6 +293,7 @@ ConcurrentHashMap
 ThreadPoolExecutor 
 如果不了解这个类，应该了解前面提到的ExecutorService，开一个自己的线程池非常方便：
 
+```java
 ExecutorService e = Executors.newCachedThreadPool();
     ExecutorService e = Executors.newSingleThreadExecutor();
     ExecutorService e = Executors.newFixedThreadPool(3);
@@ -263,6 +302,8 @@ ExecutorService e = Executors.newCachedThreadPool();
     // 第三种是固定大小线程池。
     // 然后运行
     e.execute(new MyRunnableImpl());
+```
+
 该类内部是通过ThreadPoolExecutor实现的，掌握该类有助于理解线程池的管理，本质上，他们都是ThreadPoolExecutor类的各种实现版本。请参见javadoc： 
 图片描述
 翻译一下： 
